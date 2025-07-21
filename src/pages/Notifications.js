@@ -1,86 +1,150 @@
-import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Paper } from '@mui/material';
-import { Send, Delete, Add } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { 
+  Box, 
+  Typography, 
+  List, 
+  ListItem, 
+  ListItemIcon, 
+  ListItemText, 
+  Switch,
+  Badge,
+  IconButton,
+  Divider
+} from '@mui/material';
+import { 
+  Notifications as NotificationsIcon,
+  Email,
+  Sms,
+  CircleNotifications
+} from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([
-    { id: 1, title: 'System Maintenance', message: 'The system will be down for maintenance on June 1st from 2-4 AM.', date: '2023-05-20' },
-    { id: 2, title: 'New Feature', message: 'We have added a new dispute resolution feature. Check it out!', date: '2023-05-18' },
-    { id: 3, title: 'Policy Update', message: 'Please review our updated privacy policy.', date: '2023-05-15' },
+    { id: 1, message: 'New item reported in lost & found', read: false, timestamp: '2023-05-20T10:30:00' },
+    { id: 2, message: 'Your dispute has been resolved', read: true, timestamp: '2023-05-19T14:15:00' }
   ]);
-
-  const [newNotification, setNewNotification] = useState({
-    title: '',
-    message: '',
+  
+  const [preferences, setPreferences] = useState({
+    pushEnabled: true,
+    emailEnabled: false,
+    smsEnabled: false
   });
+  
+  const { enqueueSnackbar } = useSnackbar();
 
-  const handleSend = () => {
-    if (newNotification.title && newNotification.message) {
-      const notification = {
-        id: notifications.length + 1,
-        title: newNotification.title,
-        message: newNotification.message,
-        date: new Date().toISOString().split('T')[0],
+  // Simulate real-time notifications with WebSocket
+  useEffect(() => {
+    const ws = new WebSocket('wss://your-websocket-endpoint');
+    
+    ws.onmessage = (event) => {
+      const newNotification = {
+        id: Date.now(),
+        message: event.data,
+        read: false,
+        timestamp: new Date().toISOString()
       };
-      setNotifications([notification, ...notifications]);
-      setNewNotification({ title: '', message: '' });
-    }
+      
+      setNotifications(prev => [newNotification, ...prev]);
+      
+      if (preferences.pushEnabled) {
+        enqueueSnackbar(event.data, { 
+          variant: 'info',
+          autoHideDuration: 3000,
+          action: (
+            <IconButton color="inherit" size="small">
+              <CircleNotifications />
+            </IconButton>
+          )
+        });
+      }
+    };
+    
+    return () => ws.close();
+  }, [preferences.pushEnabled, enqueueSnackbar]);
+
+  const togglePreference = (type) => {
+    setPreferences(prev => ({
+      ...prev,
+      [type]: !prev[type]
+    }));
   };
 
-  const handleDelete = (id) => {
-    setNotifications(notifications.filter(notification => notification.id !== id));
+  const markAsRead = (id) => {
+    setNotifications(prev =>
+      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    );
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>Send Notifications</Typography>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
+        <NotificationsIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+        Notifications
+      </Typography>
       
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Create New Notification</Typography>
-        <TextField
-          label="Title"
-          fullWidth
-          margin="normal"
-          value={newNotification.title}
-          onChange={(e) => setNewNotification({...newNotification, title: e.target.value})}
-        />
-        <TextField
-          label="Message"
-          fullWidth
-          margin="normal"
-          multiline
-          rows={4}
-          value={newNotification.message}
-          onChange={(e) => setNewNotification({...newNotification, message: e.target.value})}
-        />
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<Send />}
-          onClick={handleSend}
-          disabled={!newNotification.title || !newNotification.message}
-          sx={{ mt: 2 }}
-        >
-          Send Notification
-        </Button>
-      </Paper>
-      
-      <Typography variant="h6" gutterBottom>Recent Notifications</Typography>
-      <List>
-        {notifications.map((notification) => (
-          <ListItem key={notification.id}>
-            <ListItemText
-              primary={notification.title}
-              secondary={`${notification.message} - Sent on ${notification.date}`}
+      <Box sx={{ mb: 4, p: 3, bgcolor: 'background.paper', borderRadius: 2 }}>
+        <Typography variant="h6" gutterBottom>Notification Preferences</Typography>
+        <List>
+          <ListItem>
+            <ListItemIcon>
+              <CircleNotifications />
+            </ListItemIcon>
+            <ListItemText primary="Push Notifications" />
+            <Switch 
+              checked={preferences.pushEnabled}
+              onChange={() => togglePreference('pushEnabled')}
             />
-            <ListItemSecondaryAction>
-              <IconButton edge="end" onClick={() => handleDelete(notification.id)}>
-                <Delete />
-              </IconButton>
-            </ListItemSecondaryAction>
           </ListItem>
-        ))}
-      </List>
+          <ListItem>
+            <ListItemIcon>
+              <Email />
+            </ListItemIcon>
+            <ListItemText primary="Email Notifications" />
+            <Switch 
+              checked={preferences.emailEnabled}
+              onChange={() => togglePreference('emailEnabled')}
+            />
+          </ListItem>
+          <ListItem>
+            <ListItemIcon>
+              <Sms />
+            </ListItemIcon>
+            <ListItemText primary="SMS Notifications" />
+            <Switch 
+              checked={preferences.smsEnabled}
+              onChange={() => togglePreference('smsEnabled')}
+            />
+          </ListItem>
+        </List>
+      </Box>
+      
+      <Box sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ p: 2 }}>Recent Notifications</Typography>
+        <Divider />
+        <List>
+          {notifications.map((notification) => (
+            <ListItem 
+              key={notification.id} 
+              button 
+              onClick={() => markAsRead(notification.id)}
+              sx={{
+                bgcolor: notification.read ? 'inherit' : 'action.hover'
+              }}
+            >
+              <ListItemIcon>
+                <Badge color="error" variant="dot" invisible={notification.read}>
+                  <NotificationsIcon />
+                </Badge>
+              </ListItemIcon>
+              <ListItemText
+                primary={notification.message}
+                secondary={new Date(notification.timestamp).toLocaleString()}
+              />
+            </ListItem>
+          ))}
+        </List>
+      </Box>
     </Box>
   );
 };
